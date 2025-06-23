@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(20, 14.3%, 4.1%);
+  --muted: hsl(60, 4.8%, 95.9%);
+  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(20, 14.3%, 4.1%);
+  --border: hsl(20, 5.9%, 90%);
+  --input: hsl(20, 5.9%, 90%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(60, 4.8%, 95.9%);
+  --secondary-foreground: hsl(24, 9.8%, 10%);
+  --accent: hsl(60, 4.8%, 95.9%);
+  --accent-foreground: hsl(24, 9.8%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(20, 14.3%, 4.1%);
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-gray-50 text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+/* Custom classes for timetable colors */
+.subject-math { @apply bg-blue-100 border-blue-200 text-blue-900; }
+.subject-math .subject-teacher { @apply text-blue-600; }
+.subject-math .subject-details { @apply text-blue-500; }
+
+.subject-physics { @apply bg-green-100 border-green-200 text-green-900; }
+.subject-physics .subject-teacher { @apply text-green-600; }
+.subject-physics .subject-details { @apply text-green-500; }
+
+.subject-chemistry { @apply bg-purple-100 border-purple-200 text-purple-900; }
+.subject-chemistry .subject-teacher { @apply text-purple-600; }
+.subject-chemistry .subject-details { @apply text-purple-500; }
+
+.subject-biology { @apply bg-orange-100 border-orange-200 text-orange-900; }
+.subject-biology .subject-teacher { @apply text-orange-600; }
+.subject-biology .subject-details { @apply text-orange-500; }
+
+.subject-english { @apply bg-yellow-100 border-yellow-200 text-yellow-900; }
+.subject-english .subject-teacher { @apply text-yellow-600; }
+.subject-english .subject-details { @apply text-yellow-500; }
+
+.subject-cs { @apply bg-indigo-100 border-indigo-200 text-indigo-900; }
+.subject-cs .subject-teacher { @apply text-indigo-600; }
+.subject-cs .subject-details { @apply text-indigo-500; }
+
+.subject-history { @apply bg-red-100 border-red-200 text-red-900; }
+.subject-history .subject-teacher { @apply text-red-600; }
+.subject-history .subject-details { @apply text-red-500; }
+
+.subject-art { @apply bg-pink-100 border-pink-200 text-pink-900; }
+.subject-art .subject-teacher { @apply text-pink-600; }
+.subject-art .subject-details { @apply text-pink-500; }
+
+.subject-geography { @apply bg-cyan-100 border-cyan-200 text-cyan-900; }
+.subject-geography .subject-teacher { @apply text-cyan-600; }
+.subject-geography .subject-details { @apply text-cyan-500; }
+
+.subject-economics { @apply bg-teal-100 border-teal-200 text-teal-900; }
+.subject-economics .subject-teacher { @apply text-teal-600; }
+.subject-economics .subject-details { @apply text-teal-500; }
+
+.subject-default { @apply bg-gray-100 border-gray-200 text-gray-900; }
+.subject-default .subject-teacher { @apply text-gray-600; }
+.subject-default .subject-details { @apply text-gray-500; }
+
+.subject-free { @apply bg-gray-100 border-gray-200 text-gray-500 opacity-50; }
