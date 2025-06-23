@@ -102,12 +102,27 @@ bool isValidSlot(const Subject& sub, const Slot& slot, const std::vector<Slot>& 
     return true;
 }
 
-// Greedy algorithm to schedule timetable
-std::vector<Slot> scheduleTimetable(std::vector<Subject>& subjects, const std::string& config_filename) {
+// Struct for slot scoring
+struct SlotScore {
+    Slot slot;
+    double score;
+    
+    bool operator<(const SlotScore& other) const {
+        return score > other.score; // Higher score = better
+    }
+};
+
+// Greedy algorithm to schedule timetable with morning preference
+std::vector<Slot> scheduleTimetable(std::vector<Subject>& subjects, const std::string& config_filename, double morningWeight = 5.0) {
     std::vector<Slot> timetable;
     std::vector<std::string> rooms = getRooms(config_filename);
     std::vector<std::string> days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"};
     std::vector<std::string> times = {"9AM", "10AM", "11AM", "12PM", "1PM", "2PM"};
+    
+    // Track morning slot usage per day (for distribution)
+    std::vector<int> usedMorningSlots(5, 0); // 5 days
+    const int morningSlotCount = 3; // 9AM, 10AM, 11AM are morning slots
+    const double distributionPenalty = 2.0; // Penalty for uneven distribution
 
     // Sort subjects: labs first, then by credits
     std::sort(subjects.begin(), subjects.end(), [](const Subject& a, const Subject& b) {
@@ -116,32 +131,92 @@ std::vector<Slot> scheduleTimetable(std::vector<Subject>& subjects, const std::s
         return a.credits > b.credits;
     });
 
-    // Assign each subject to valid slots
+    // Assign each subject to valid slots using scoring
     for (auto& sub : subjects) {
         int hours_assigned = 0;
-        for (int day = 0; day < 5 && hours_assigned < sub.hours_needed; ++day) {
-            for (int time = 0; time < 6 && hours_assigned < sub.hours_needed; ++time) {
-                for (const auto& room : rooms) {
-                    Slot slot = {day, time, room, sub.name, sub.teacher, sub.semester};
-                    if (isValidSlot(sub, slot, timetable)) {
-                        timetable.push_back(slot);
-                        ++hours_assigned;
-                        // For labs, assign 2-hour blocks
-                        if (sub.type == "Lab" && hours_assigned < sub.hours_needed) {
-                            Slot next_slot = {day, time + 1, room, sub.name, sub.teacher, sub.semester};
-                            if (time + 1 < 6 && isValidSlot(sub, next_slot, timetable)) {
-                                timetable.push_back(next_slot);
-                                ++hours_assigned;
+        
+        while (hours_assigned < sub.hours_needed) {
+            std::vector<SlotScore> candidateSlots;
+            
+            // Generate all possible slots and score them
+            for (int day = 0; day < 5; ++day) {
+                for (int time = 0; time < 6; ++time) {
+                    for (const auto& room : rooms) {
+                        Slot slot = {day, time, room, sub.name, sub.teacher, sub.semester};
+                        if (isValidSlot(sub, slot, timetable)) {
+                            // Calculate score for this slot
+                            double score = 0.0;
+                            
+                            // Morning preference bonus
+                            bool isMorning = (time < morningSlotCount);
+                            if (isMorning) {
+                                score += morningWeight;
                             }
+                            
+                            // Distribution penalty (encourage even spread across days)
+                            if (isMorning) {
+                                score -= distributionPenalty * usedMorningSlots[day];
+                            }
+                            
+                            // Lab preference for consecutive slots
+                            if (sub.type == "Lab" && time < 5) {
+                                Slot next_slot = {day, time + 1, room, sub.name, sub.teacher, sub.semester};
+                                if (isValidSlot(sub, next_slot, timetable)) {
+                                    score += 3.0; // Bonus for lab block availability
+                                }
+                            }
+                            
+                            candidateSlots.push_back({slot, score});
                         }
                     }
                 }
             }
+            
+            if (candidateSlots.empty()) {
+                std::cerr << "Warning: No valid slots found for " << sub.name << "\n";
+                break;
+            }
+            
+            // Sort by score and take the best slot
+            std::sort(candidateSlots.begin(), candidateSlots.end());
+            Slot bestSlot = candidateSlots[0].slot;
+            
+            // Assign the slot
+            timetable.push_back(bestSlot);
+            ++hours_assigned;
+            
+            // Update morning slot usage
+            if (bestSlot.time < morningSlotCount) {
+                usedMorningSlots[bestSlot.day]++;
+            }
+            
+            // For labs, try to assign consecutive slot
+            if (sub.type == "Lab" && hours_assigned < sub.hours_needed && bestSlot.time < 5) {
+                Slot next_slot = {bestSlot.day, bestSlot.time + 1, bestSlot.room, sub.name, sub.teacher, sub.semester};
+                if (isValidSlot(sub, next_slot, timetable)) {
+                    timetable.push_back(next_slot);
+                    ++hours_assigned;
+                    
+                    // Update morning slot usage for consecutive slot
+                    if (next_slot.time < morningSlotCount) {
+                        usedMorningSlots[next_slot.day]++;
+                    }
+                }
+            }
         }
+        
         if (hours_assigned < sub.hours_needed) {
-            std::cerr << "Warning: Could not assign all hours for " << sub.name << "\n";
+            std::cerr << "Warning: Could not assign all hours for " << sub.name 
+                      << " (assigned " << hours_assigned << "/" << sub.hours_needed << ")\n";
         }
     }
+
+    // Print morning slot distribution summary
+    std::cerr << "Morning slot distribution: ";
+    for (int i = 0; i < 5; ++i) {
+        std::cerr << days[i] << ":" << usedMorningSlots[i] << " ";
+    }
+    std::cerr << "\n";
 
     return timetable;
 }
@@ -166,12 +241,28 @@ std::string timetableToJson(const std::vector<Slot>& timetable) {
 }
 
 int main(int argc, char* argv[]) {
-    // Check for dataset and config file arguments
-    if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << " <dataset.csv> <config.csv>\n";
-        std::cerr << "Example: " << argv[0] << " .\\datasets\\dataset1.csv .\\datasets\\dataset1_config.csv\n";
+    // Check for dataset and config file arguments (morning weight is optional)
+    if (argc < 3 || argc > 4) {
+        std::cerr << "Usage: " << argv[0] << " <dataset.csv> <config.csv> [morningWeight]\n";
+        std::cerr << "Example: " << argv[0] << " .\\datasets\\dataset1.csv .\\datasets\\dataset1_config.csv 10.0\n";
+        std::cerr << "Morning weight controls preference for morning slots (0-20, default: 5.0)\n";
         return 1;
     }
+
+    // Parse optional morning weight parameter
+    double morningWeight = 5.0; // Default value
+    if (argc == 4) {
+        try {
+            morningWeight = std::stod(argv[3]);
+            if (morningWeight < 0 || morningWeight > 20) {
+                std::cerr << "Warning: Morning weight should be between 0-20. Using: " << morningWeight << "\n";
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: Invalid morning weight '" << argv[3] << "'. Using default: " << morningWeight << "\n";
+        }
+    }
+
+    std::cerr << "Using morning preference weight: " << morningWeight << "\n";
 
     // Read subjects from dataset CSV
     std::vector<Subject> subjects = readSubjects(argv[1]);
@@ -180,8 +271,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Generate timetable using config file
-    std::vector<Slot> timetable = scheduleTimetable(subjects, argv[2]);
+    // Generate timetable using config file and morning weight
+    std::vector<Slot> timetable = scheduleTimetable(subjects, argv[2], morningWeight);
 
     // Save to file
     std::ofstream out("timetable.json");

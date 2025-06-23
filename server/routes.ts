@@ -45,6 +45,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const configFile = files.config[0];
       const sessionId = nanoid();
 
+      // Parse morning weight parameter (default: 5.0)
+      const morningWeight = req.body.morningWeight ? 
+        Math.max(0, Math.min(20, parseFloat(req.body.morningWeight))) : 5.0;
+
       // Create session
       await storage.createSession({
         sessionId,
@@ -56,8 +60,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stats: null,
       });
 
-      // Process files asynchronously
-      processSchedulerFiles(sessionId, datasetFile.path, configFile.path)
+      // Process files asynchronously with morning weight
+      processSchedulerFiles(sessionId, datasetFile.path, configFile.path, morningWeight)
         .catch(async (error) => {
           await storage.updateSession(sessionId, {
             status: "failed",
@@ -65,7 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         });
 
-      res.json({ sessionId, status: "processing" });
+      res.json({ sessionId, status: "processing", morningWeight });
     } catch (error) {
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Internal server error" 
@@ -153,11 +157,12 @@ async function compileCppScheduler(): Promise<void> {
 async function processSchedulerFiles(
   sessionId: string, 
   datasetPath: string, 
-  configPath: string
+  configPath: string,
+  morningWeight: number = 5.0
 ): Promise<void> {
   try {
-    // Run the C++ scheduler
-    const result = await runScheduler(datasetPath, configPath);
+    // Run the C++ scheduler with morning weight
+    const result = await runScheduler(datasetPath, configPath, morningWeight);
     
     // Read the generated timetable.json
     const timetableJson = await fs.readFile("timetable.json", "utf-8");
@@ -205,9 +210,9 @@ async function processSchedulerFiles(
   }
 }
 
-async function runScheduler(datasetPath: string, configPath: string): Promise<string> {
+async function runScheduler(datasetPath: string, configPath: string, morningWeight: number = 5.0): Promise<string> {
   return new Promise((resolve, reject) => {
-    const scheduler = spawn("./scheduler", [datasetPath, configPath]);
+    const scheduler = spawn("./scheduler", [datasetPath, configPath, morningWeight.toString()]);
     
     let stdout = "";
     let stderr = "";

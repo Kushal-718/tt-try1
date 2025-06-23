@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Upload, FileText, X, Download, Info, Settings } from "lucide-react";
+import { Upload, FileText, X, Download, Info, Settings, Sliders } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,13 +14,15 @@ interface FileUploadProps {
 export function FileUpload({ onGenerationStart, disabled }: FileUploadProps) {
   const [datasetFile, setDatasetFile] = useState<File | null>(null);
   const [configFile, setConfigFile] = useState<File | null>(null);
+  const [morningWeight, setMorningWeight] = useState<number>(5);
   const { toast } = useToast();
 
   const generateMutation = useMutation({
-    mutationFn: async (files: { dataset: File; config: File }) => {
+    mutationFn: async (files: { dataset: File; config: File; morningWeight: number }) => {
       const formData = new FormData();
       formData.append("dataset", files.dataset);
       formData.append("config", files.config);
+      formData.append("morningWeight", files.morningWeight.toString());
 
       const response = await fetch("/api/schedule", {
         method: "POST",
@@ -78,7 +80,7 @@ export function FileUpload({ onGenerationStart, disabled }: FileUploadProps) {
 
   const handleGenerate = () => {
     if (datasetFile && configFile) {
-      generateMutation.mutate({ dataset: datasetFile, config: configFile });
+      generateMutation.mutate({ dataset: datasetFile, config: configFile, morningWeight });
     }
   };
 
@@ -193,6 +195,51 @@ export function FileUpload({ onGenerationStart, disabled }: FileUploadProps) {
                   </Button>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Morning Preference Settings */}
+          <div className="mt-6 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
+            <div className="flex items-start space-x-3">
+              <Sliders className="text-yellow-600 w-5 h-5 mt-0.5" />
+              <div className="flex-grow">
+                <h4 className="text-sm font-medium text-yellow-800 mb-2">Morning Preference Settings</h4>
+                <p className="text-xs text-yellow-700 mb-3">Control how much the scheduler favors morning slots (9AM-11AM)</p>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-yellow-800">Morning Weight:</label>
+                    <span className="text-sm font-semibold text-yellow-900 bg-yellow-100 px-2 py-1 rounded">
+                      {morningWeight}
+                    </span>
+                  </div>
+                  
+                  <input
+                    type="range"
+                    min="0"
+                    max="20"
+                    step="1"
+                    value={morningWeight}
+                    onChange={(e) => setMorningWeight(parseInt(e.target.value))}
+                    className="w-full h-2 bg-yellow-200 rounded-lg appearance-none cursor-pointer slider"
+                    disabled={disabled}
+                  />
+                  
+                  <div className="flex justify-between text-xs text-yellow-600">
+                    <span>No preference (0)</span>
+                    <span>Moderate (10)</span>
+                    <span>Strong preference (20)</span>
+                  </div>
+                  
+                  <p className="text-xs text-yellow-600">
+                    {morningWeight === 0 && "Neutral scheduling - no morning preference"}
+                    {morningWeight > 0 && morningWeight <= 5 && "Slight preference for morning slots"}
+                    {morningWeight > 5 && morningWeight <= 10 && "Moderate morning preference with balanced distribution"}
+                    {morningWeight > 10 && morningWeight <= 15 && "Strong morning preference"}
+                    {morningWeight > 15 && "Maximum morning preference"}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

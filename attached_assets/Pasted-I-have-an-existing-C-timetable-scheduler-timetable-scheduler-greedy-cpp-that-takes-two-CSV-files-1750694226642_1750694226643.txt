@@ -1,0 +1,154 @@
+I have an existing C++ timetable-scheduler (timetable_scheduler_greedy.cpp) that takes two CSV files (dataset.csv and config.csv) and outputs a timetable. I want to deploy and extend it on Replit with:
+- Morning-preference optimization: favor scheduling classes in morning slots (e.g., first 3 periods 9AM–12PM) evenly across Monday–Friday.
+- A React frontend with Tailwind CSS, where the timetable grid is rendered with days as rows and time slots as columns.
+- A Node.js/Express backend that compiles and invokes the C++ binary.
+
+Requirements:
+
+1. **C++ Scheduler Changes**:
+   - Introduce a “morning preference weight” parameter (read either from an extra column in config CSV or as an optional CLI argument).
+   - Tag time slots with `day` (0–4) and `timeIndex`. Define morning slots (e.g., timeIndex < 3).
+   - Maintain `usedMorningSlots[5]` to count scheduled morning slots per day.
+   - When selecting a slot for each class in the greedy algorithm, compute a score:
+       ```
+       score = (isMorning ? morningWeight : 0) 
+             - distributionPenalty * usedMorningSlots[day]
+             + otherCriteria (if any)
+       ```
+     Sort feasible slots by descending score, pick best.
+   - After assignment, update `usedMorningSlots[day]`.
+   - Default morningWeight if not provided; parse optional third CLI arg: `./scheduler dataset.csv config.csv [morningWeight]`.
+   - Update README to document new argument or config field.
+
+2. **Backend (Node.js/Express)**:
+   - Use `g++ timetable_scheduler_greedy.cpp -o scheduler`.
+   - POST `/api/schedule`: accept multipart/form-data with `dataset` and `config`, plus an optional `morningWeight` field.
+   - Save uploads temporarily, spawn `./scheduler datasetPath configPath morningWeight`, capture stdout.
+   - Parse CSV output into JSON objects with fields: `{ day, timeSlot, subject, teacher, room, semester }`.
+   - Transform into nested structure keyed by day then timeSlot before sending, or send flat array and let frontend transform.
+   - Enable CORS.
+   - Clean up temp files; handle errors/timeouts.
+   - Add GET `/api/example-datasets` to serve sample CSVs in `/datasets`.
+
+3. **React Frontend**:
+   - Under `frontend/`, set up Create React App or Vite.
+   - Use Tailwind CSS.
+   - Create components:
+     - `SettingsPanel`: includes file inputs for dataset/config CSV and a numeric slider/input for “Morning Preference Weight” (range e.g. 0–20).
+     - `TimetableView`: renders a table with days as rows and time slots as columns (swap layout). Use Tailwind for styling; free cells show “Free” text; scheduled cells show a colored card with subject, teacher, room, semester.
+     - `FilterControls`: allow filtering by teacher/room/subject.
+     - `MetricsDisplay`: after receiving timetable, compute and show total morning slots used vs possible, and per-day morning usage (e.g., a small bar chart using a simple `<div>`-based bar or a lightweight chart library if allowed; otherwise textual summary).
+     - `DownloadButton`: export timetable as CSV or PDF.
+     - `StatusModal` or spinner while waiting for backend.
+   - In API call (e.g., using `fetch` or Axios):
+     - Build `FormData`: append `dataset`, `config`, and `morningWeight`.
+     - POST to backend `/api/schedule`.
+     - On response, transform into nested `timetableObj[day][timeSlot]`.
+   - In `TimetableView`, implement as:
+     ```jsx
+     <table> 
+       <thead>
+         <tr>
+           <th>Day / Time</th>
+           {timeSlots.map(slot => <th key={slot}>{slot}</th>)}
+         </tr>
+       </thead>
+       <tbody>
+         {days.map(day => (
+           <tr key={day}>
+             <td>{day}</td>
+             {timeSlots.map(slot => {
+               const entry = timetableObj[day]?.[slot];
+               return (
+                 <td key={slot}>
+                   {entry ? (
+                     <div className="bg-blue-100 rounded-lg p-2">
+                       <div className="font-semibold">{entry.subject}</div>
+                       <div className="text-sm">{entry.teacher}</div>
+                       <div className="text-sm">{entry.room}</div>
+                       <div className="text-xs">Sem {entry.semester}</div>
+                     </div>
+                   ) : (
+                     <div className="bg-gray-100 text-gray-500 text-center rounded-lg py-1">Free</div>
+                   )}
+                 </td>
+               );
+             })}
+           </tr>
+         ))}
+       </tbody>
+     </table>
+     ```
+   - Add logic to highlight morning columns (e.g., different header bg) if desired.
+   - After scheduling, compute metrics:
+     ```js
+     // Example: count morning usage per day
+     const morningIndices = [0,1,2]; // adjust based on timeSlots array
+     const usage = days.map(day => {
+       let count = 0;
+       morningIndices.forEach(idx => {
+         const slot = timeSlots[idx];
+         if (timetableObj[day]?.[slot]) count++;
+       });
+       return { day, count };
+     });
+     // Display usage in a small table or bar-like divs.
+     ```
+   - Ensure responsive: wrap table in a scroll container.
+
+4. **Replit Configuration**:
+   - `replit.nix`: include Node.js and gcc/g++. Example:
+     ```
+     { pkgs }: {
+       deps = [
+         pkgs.nodejs-18_x
+         pkgs.gcc
+       ];
+     }
+     ```
+   - `.replit`: set run command:
+     ```
+     run = "bash setup.sh"
+     ```
+     And create `setup.sh`:
+     ```bash
+     #!/bin/bash
+     npm install
+     npm run build-scheduler
+     # Start backend in background, then serve frontend or use separate Replit
+     npm run dev
+     ```
+   - Or if monorepo: run both backend and frontend concurrently (e.g., using `concurrently` npm package), but simpler is two Replits.
+
+5. **README.md**:
+   - Document how to set morningWeight via UI slider or as CLI arg.
+   - Show example: “To strongly favor mornings, set weight to 15; to neutral, set weight 0; to moderate, 5–10.”
+   - Explain swapped UI layout: days are rows, time slots columns.
+   - Instructions to run in Replit (no PowerShell issues, just bash `npm install`, `npm run build-scheduler`, `npm run dev`).
+   - Describe sample datasets in `/datasets` and how to use “Use example dataset” button if implemented.
+
+Please generate:
+- Updated C++ code (`timetable_scheduler_greedy.cpp`) with morning-weight logic and parsing of optional arg.
+- Node.js backend files (`package.json`, `server.js`) accepting morningWeight.
+- React frontend skeleton under `frontend/` with the swapped TimetableView layout and slider in SettingsPanel, plus metrics display.
+- `replit.nix`, `.replit`, `setup.sh`, and `README.md`.
+
+Use Tailwind classes for styling, React functional components/hooks, Express for backend, child_process to spawn the scheduler with the new argument. Ensure all code is modular, well-commented, and backward-compatible if morningWeight isn’t provided. Emphasize clean UX with days-as-rows layout and morning-slot highlighting in the timetable.```
+
+---
+
+### How to Integrate the Swapped Layout
+
+1. **Data structure**: Backend can continue returning a flat list of entries with fields `{ day: "Monday", timeSlot: "9AM", ... }`. Frontend transforms into `timetableObj[day][timeSlot]`.
+2. **Component**: Use the JSX sketch above in your TimetableView. Ensure `days` and `timeSlots` arrays are ordered correctly.
+3. **Highlighting mornings**: In `<th>` for the first few timeSlots, add a Tailwind bg class (e.g. `bg-yellow-100`) so users visually see morning.
+4. **Responsive**: Wrap the `<table>` in a div with `overflow-x-auto` so on narrow screens they can scroll horizontally.
+
+With these instructions and the Replit AI prompt, you’ll get a full-stack scaffold that includes:
+- Morning-preference optimization in C++.
+- Backend accepting and passing the parameter.
+- React UI with swapped rows/columns and a slider for morning weight.
+- Metrics on morning utilization.
+- Replit-specific configuration to run smoothly in bash.
+
+Paste the prompt into Replit AI, review the generated files, and test with your datasets. Adjust the number of morning periods or weight range as needed. This achieves both the “most classes in morning across 5 days” objective and the “interchange rows and columns” layout for improved readability.

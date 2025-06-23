@@ -201,34 +201,37 @@ export function TimetableDisplay({ sessionId, onReset }: TimetableDisplayProps) 
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                  {days.map(day => (
-                    <th key={day} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {day}
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Day / Time</th>
+                  {timeSlots.map((time, index) => (
+                    <th key={time} className={`px-4 py-3 text-center text-xs font-medium uppercase tracking-wider ${
+                      index < 3 ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500'
+                    }`}>
+                      {time}
+                      {index < 3 && <div className="text-xs normal-case font-normal">Morning</div>}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {timeSlots.map(time => (
-                  <tr key={time} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {time}
+                {days.map(day => (
+                  <tr key={day} className="hover:bg-gray-50">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50">
+                      {day}
                     </td>
-                    {days.map(day => {
+                    {timeSlots.map(time => {
                       const slot = timetableGrid[time][day];
                       return (
-                        <td key={day} className="px-6 py-4 whitespace-nowrap">
+                        <td key={time} className="px-4 py-4 whitespace-nowrap">
                           {slot ? (
-                            <div className={`border rounded-lg p-3 ${getSubjectColorClass(slot.subject)}`}>
+                            <div className={`border rounded-lg p-2 min-h-[80px] ${getSubjectColorClass(slot.subject)}`}>
                               <div className="text-sm font-medium">{slot.subject}</div>
                               <div className="text-xs subject-teacher mt-1">{slot.teacher}</div>
                               <div className="text-xs subject-details">{slot.room}</div>
                               <div className="text-xs subject-details">{slot.semester}</div>
                             </div>
                           ) : (
-                            <div className="subject-free border rounded-lg p-3">
-                              <div className="text-sm">Free Period</div>
+                            <div className="subject-free border rounded-lg p-2 min-h-[80px] flex items-center justify-center">
+                              <div className="text-sm">Free</div>
                             </div>
                           )}
                         </td>
@@ -239,6 +242,72 @@ export function TimetableDisplay({ sessionId, onReset }: TimetableDisplayProps) 
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Morning Slot Metrics */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Morning Slot Utilization</h3>
+            <p className="text-sm text-gray-600">Distribution of classes scheduled in morning slots (9AM-11AM)</p>
+          </div>
+          
+          {(() => {
+            const morningSlots = timeSlots.slice(0, 3); // 9AM, 10AM, 11AM
+            const morningUsage = days.map(day => {
+              let count = 0;
+              morningSlots.forEach(time => {
+                if (timetableGrid[time]?.[day]) count++;
+              });
+              return { day, count, percentage: Math.round((count / morningSlots.length) * 100) };
+            });
+            
+            const totalMorningSlots = morningUsage.reduce((sum, usage) => sum + usage.count, 0);
+            const totalPossibleMorning = days.length * morningSlots.length;
+            const overallPercentage = Math.round((totalMorningSlots / totalPossibleMorning) * 100);
+            
+            return (
+              <div className="space-y-4">
+                {/* Overall Morning Usage */}
+                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-yellow-800">Overall Morning Usage</span>
+                    <span className="text-lg font-bold text-yellow-900">{overallPercentage}%</span>
+                  </div>
+                  <div className="w-full bg-yellow-200 rounded-full h-2">
+                    <div 
+                      className="bg-yellow-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${overallPercentage}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    {totalMorningSlots} of {totalPossibleMorning} morning slots used
+                  </p>
+                </div>
+                
+                {/* Per-Day Morning Usage */}
+                <div className="grid grid-cols-5 gap-3">
+                  {morningUsage.map(({ day, count, percentage }) => (
+                    <div key={day} className="text-center">
+                      <div className="text-xs font-medium text-gray-700 mb-1">{day.slice(0, 3)}</div>
+                      <div className="bg-gray-200 rounded-full h-20 w-8 mx-auto relative">
+                        <div 
+                          className={`absolute bottom-0 w-full rounded-full transition-all duration-500 ${
+                            percentage >= 67 ? 'bg-green-500' : 
+                            percentage >= 33 ? 'bg-yellow-500' : 'bg-red-400'
+                          }`}
+                          style={{ height: `${percentage}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-xs font-semibold text-gray-900 mt-1">{count}/3</div>
+                      <div className="text-xs text-gray-600">{percentage}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 
