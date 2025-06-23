@@ -1,0 +1,50 @@
+I have a C++ timetable-scheduler binary (timetable_scheduler_greedy.cpp) that, given two CSVs (dataset.csv, config.csv), outputs a timetable. I want Replit AI to generate a full-stack Replit setup:
+
+1. **Environment (replit.nix)**:
+   - Include Node.js (v18+), g++/gcc for compiling C++.
+   - Ensure bash shell is used.
+
+2. **Backend**:
+   - Create a `package.json` with scripts:
+     - `"build-scheduler": "g++ timetable_scheduler_greedy.cpp -o scheduler"`
+     - `"start": "node server.js"`
+     - `"dev": "nodemon server.js"`
+   - Install dependencies: `express`, `multer`, `cors`, and devDependency `nodemon`.
+   - Write `server.js` with:
+     - Express app listening on `process.env.PORT`.
+     - CORS enabled.
+     - POST `/api/schedule` using multer to accept `dataset` and `config` files; save to temp.
+     - Spawn `./scheduler` with the uploaded file paths; capture stdout/stderr.
+     - On success, parse CSV output into JSON (split header, rows) and return `{ timetable: [...] }`.
+     - Clean up temp files; handle errors/timeouts.
+   - Add optional GET endpoint to serve example CSV templates from a `/datasets` folder.
+
+3. **C++ integration**:
+   - Put `timetable_scheduler_greedy.cpp` in project root.
+   - Ensure `npm run build-scheduler` compiles it to `./scheduler`.
+   - In README or start script, run `npm install` then `npm run build-scheduler`.
+
+4. **Frontend**:
+   - In same Replit or separate: generate a React app (via Create React App or Vite) under `frontend/`.
+   - In React, implement:
+     - File uploader (two CSVs) and settings UI.
+     - Fetch to backend `/api/schedule` with FormData.
+     - Show a spinner/status while awaiting response.
+     - Display timetable JSON in an interactive grid: rows = time slots, columns = rooms/sections; allow filtering by teacher/room/subject; tabs for semesters.
+     - Download/export button for CSV or PDF (use client-side or call backend).
+     - Responsive design with Tailwind CSS: use functional components, hooks, and clear Tailwind classes (rounded cards, padding, shadows, headings).
+     - Optionally dark/light toggle, localStorage for recent settings.
+
+5. **Replit run configuration**:
+   - In `.replit`, set `run = "bash setup_and_run.sh"` or directly `run = "npm install && npm run build-scheduler && npm run dev"`.
+   - Ensure the scheduler binary is compiled before starting server.
+   - Use bash commands—no PowerShell issues.
+
+6. **README**:
+   - Explain how to start: Replit “Run” will install deps, compile C++, and start the backend.
+   - If frontend is separate, note how to connect to backend URL and enable CORS.
+   - Describe how to upload CSVs, trigger scheduling, and view/export the timetable.
+
+Generate all necessary files: `replit.nix`, `package.json`, `server.js`, optional `datasets/` folder with sample CSVs, React frontend skeleton under `frontend/`, and a README.md explaining usage. Keep code modular, with comments indicating where to adjust paths or add features. Avoid reimplementing scheduling logic in JS; call the compiled C++ binary. Ensure error handling and a smooth UX.```
+
+Paste this into Replit AI; it should produce the project scaffolding and code files accordingly.
