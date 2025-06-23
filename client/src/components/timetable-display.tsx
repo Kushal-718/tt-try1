@@ -31,9 +31,9 @@ const getSubjectColorClass = (subject: string): string => {
 
 export function TimetableDisplay({ sessionId, onReset }: TimetableDisplayProps) {
   const [filters, setFilters] = useState({
-    semester: "",
-    teacher: "",
-    room: "",
+    semester: "all",
+    teacher: "all",
+    room: "all",
   });
 
   const { data, isLoading } = useQuery({
@@ -56,15 +56,15 @@ export function TimetableDisplay({ sessionId, onReset }: TimetableDisplayProps) 
     );
   }
 
-  const timetable: TimetableSlot[] = data?.timetable || [];
-  const stats = data?.stats || {};
+  const timetable: TimetableSlot[] = (data as any)?.timetable || [];
+  const stats = (data as any)?.stats || {};
 
   // Filter timetable based on selected filters
   const filteredTimetable = timetable.filter((slot) => {
     return (
-      (!filters.semester || slot.semester === filters.semester) &&
-      (!filters.teacher || slot.teacher === filters.teacher) &&
-      (!filters.room || slot.room === filters.room)
+      (filters.semester === "all" || slot.semester === filters.semester) &&
+      (filters.teacher === "all" || slot.teacher === filters.teacher) &&
+      (filters.room === "all" || slot.room === filters.room)
     );
   });
 
@@ -91,8 +91,8 @@ export function TimetableDisplay({ sessionId, onReset }: TimetableDisplayProps) 
   const timetableGrid = createTimetableGrid();
 
   // Get unique values for filter dropdowns
-  const getUniqueValues = (key: keyof TimetableSlot) => {
-    return Array.from(new Set(timetable.map(slot => slot[key]))).filter(Boolean);
+  const getUniqueValues = (key: keyof TimetableSlot): string[] => {
+    return Array.from(new Set(timetable.map(slot => String(slot[key])))).filter(Boolean);
   };
 
   const exportToCsv = () => {
@@ -134,7 +134,7 @@ export function TimetableDisplay({ sessionId, onReset }: TimetableDisplayProps) 
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Semesters</SelectItem>
+                    <SelectItem value="all">All Semesters</SelectItem>
                     {getUniqueValues("semester").map(semester => (
                       <SelectItem key={semester} value={semester}>{semester}</SelectItem>
                     ))}
@@ -150,7 +150,7 @@ export function TimetableDisplay({ sessionId, onReset }: TimetableDisplayProps) 
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Teachers</SelectItem>
+                    <SelectItem value="all">All Teachers</SelectItem>
                     {getUniqueValues("teacher").map(teacher => (
                       <SelectItem key={teacher} value={teacher}>{teacher}</SelectItem>
                     ))}
@@ -166,7 +166,7 @@ export function TimetableDisplay({ sessionId, onReset }: TimetableDisplayProps) 
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Rooms</SelectItem>
+                    <SelectItem value="all">All Rooms</SelectItem>
                     {getUniqueValues("room").map(room => (
                       <SelectItem key={room} value={room}>{room}</SelectItem>
                     ))}
