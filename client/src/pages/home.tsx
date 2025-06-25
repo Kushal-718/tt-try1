@@ -5,13 +5,20 @@ import { TimetableDisplay } from "@/components/timetable-display";
 import { Button } from "@/components/ui/button";
 import { CalendarIcon, Settings, HelpCircle } from "lucide-react";
 
+// ✅ 1. Add useEffect
+import { useEffect } from "react";
+
 export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "processing" | "completed" | "failed">("idle");
 
+  // ✅ 2. Add conflict state
+  const [conflicts, setConflicts] = useState<{ subject: string; unscheduledHours: number }[]>([]);
+
   const handleGenerationStart = (newSessionId: string) => {
     setSessionId(newSessionId);
     setStatus("processing");
+    setConflicts([]); // clear old conflicts
   };
 
   const handleStatusChange = (newStatus: "processing" | "completed" | "failed") => {
@@ -21,7 +28,22 @@ export default function Home() {
   const handleReset = () => {
     setSessionId(null);
     setStatus("idle");
+    setConflicts([]);
   };
+
+  // ✅ 3. Fetch conflicts when session is completed
+  useEffect(() => {
+    if (status === "completed" && sessionId) {
+      fetch(`/api/schedule/${sessionId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.conflicts) {
+            setConflicts(data.conflicts);
+          }
+        })
+        .catch((err) => console.error("Failed to fetch conflicts:", err));
+    }
+  }, [status, sessionId]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -64,10 +86,26 @@ export default function Home() {
 
         {/* Timetable Display */}
         {status === "completed" && sessionId && (
-          <TimetableDisplay 
-            sessionId={sessionId}
-            onReset={handleReset}
-          />
+          <>
+            <TimetableDisplay 
+              sessionId={sessionId}
+              onReset={handleReset}
+            />
+
+            {/* ✅ Conflict Display */}
+            {conflicts.length > 0 && (
+              <div className="mt-6 p-4 bg-red-100 border border-red-300 rounded-lg">
+                <h2 className="text-lg font-semibold text-red-800">⛔ Scheduling Conflicts</h2>
+                <ul className="mt-2 list-disc pl-6 text-red-700">
+                  {conflicts.map((conflict, idx) => (
+                    <li key={idx}>
+                      {conflict.subject} – {conflict.unscheduledHours} hour(s) unscheduled
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
         )}
 
         {/* Error State */}

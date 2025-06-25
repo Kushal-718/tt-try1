@@ -1,4 +1,5 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";     // << add this
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -23,6 +24,8 @@ export const timetableSessions = pgTable("timetable_sessions", {
   errorMessage: text("error_message"),
   timetableData: jsonb("timetable_data"),
   stats: jsonb("stats"),
+  // Add conflicts column with default empty array:
+  conflicts: jsonb("conflicts").notNull().default(sql`'[]'::jsonb`),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -34,6 +37,7 @@ export const insertTimetableSlotSchema = createInsertSchema(timetableSlots).omit
 export const insertTimetableSessionSchema = createInsertSchema(timetableSessions).omit({
   id: true,
   createdAt: true,
+  // omit conflicts so default [] is used
 });
 
 export type TimetableSlot = typeof timetableSlots.$inferSelect;
@@ -41,7 +45,7 @@ export type InsertTimetableSlot = z.infer<typeof insertTimetableSlotSchema>;
 export type TimetableSession = typeof timetableSessions.$inferSelect;
 export type InsertTimetableSession = z.infer<typeof insertTimetableSessionSchema>;
 
-// Validation schemas for file uploads and API requests
+// Validation schemas remain unchanged
 export const generateTimetableSchema = z.object({
   sessionId: z.string().min(1),
 });

@@ -25,35 +25,52 @@ struct Slot {
     std::string semester;  // Assigned semester
 };
 
-// Read rooms from config file
+// Struct for conflict reporting
+struct Conflict {
+    std::string subjectName;
+    int unscheduledHours;
+};
+
+// Result struct: scheduled slots + conflicts
+struct ScheduleResult {
+    std::vector<Slot> timetable;
+    std::vector<Conflict> conflicts;
+};
+
+// Read rooms from config file (CSV with header "resource_type,value")
 std::vector<std::string> getRooms(const std::string& config_filename) {
     std::vector<std::string> rooms;
     std::ifstream file(config_filename);
     if (!file.is_open()) {
-        std::cerr << "Error: Could not open config file '" << config_filename << "'. Using default rooms.\n";
+        std::cerr << "Error: Could not open config file '" << config_filename 
+                  << "'. Using default rooms.\n";
         return {"Classroom1", "Classroom2", "Classroom3", "Lab1", "Lab2"};
     }
 
     std::string line;
-    std::getline(file, line); // Skip header (resource_type,value)
+    // Expect header line like: resource_type,value
+    std::getline(file, line);
     while (std::getline(file, line)) {
         std::stringstream ss(line);
         std::string resource_type, value;
         std::getline(ss, resource_type, ',');
         std::getline(ss, value, ',');
         if (resource_type == "room") {
-            rooms.push_back(value);
+            if (!value.empty())
+                rooms.push_back(value);
         }
     }
     file.close();
     if (rooms.empty()) {
-        std::cerr << "Warning: No rooms found in '" << config_filename << "'. Using default rooms.\n";
+        std::cerr << "Warning: No rooms found in '" << config_filename 
+                  << "'. Using default rooms.\n";
         return {"Classroom1", "Classroom2", "Classroom3", "Lab1", "Lab2"};
     }
     return rooms;
 }
 
-// Read subjects from CSV file
+// Read subjects from CSV file with header:
+// name,semester,credits,type,teacher,hours_needed
 std::vector<Subject> readSubjects(const std::string& filename) {
     std::vector<Subject> subjects;
     std::ifstream file(filename);
@@ -63,11 +80,13 @@ std::vector<Subject> readSubjects(const std::string& filename) {
     }
 
     std::string line;
-    std::getline(file, line); // Skip header
+    // Skip header
+    std::getline(file, line);
     while (std::getline(file, line)) {
+        if (line.empty()) continue;
         std::stringstream ss(line);
         std::string name, semester, type, teacher, token;
-        int credits, hours_needed;
+        int credits = 0, hours_needed = 0;
 
         try {
             std::getline(ss, name, ',');
@@ -76,9 +95,10 @@ std::vector<Subject> readSubjects(const std::string& filename) {
             std::getline(ss, type, ',');
             std::getline(ss, teacher, ',');
             std::getline(ss, token, ','); hours_needed = std::stoi(token);
+            // Trim whitespace if necessary (optional)
             subjects.push_back({name, semester, credits, type, teacher, hours_needed});
         } catch (const std::exception& e) {
-            std::cerr << "Error parsing line: " << line << "\n";
+            std::cerr << "Error parsing line: " << line << " (" << e.what() << ")\n";
         }
     }
     file.close();
@@ -88,7 +108,8 @@ std::vector<Subject> readSubjects(const std::string& filename) {
     return subjects;
 }
 
-// Check if a slot is valid (no conflicts)
+// Check if a slot is valid (no teacher, semester, or room conflict at same day/time)
+// Also enforce labs in lab rooms (room name contains "Lab")
 bool isValidSlot(const Subject& sub, const Slot& slot, const std::vector<Slot>& timetable) {
     for (const auto& assigned : timetable) {
         if (assigned.day == slot.day && assigned.time == slot.time) {
@@ -97,192 +118,224 @@ bool isValidSlot(const Subject& sub, const Slot& slot, const std::vector<Slot>& 
             if (assigned.room == slot.room) return false; // Room conflict
         }
     }
-    // Labs must be in lab rooms (identified by "Lab" in name)
-    if (sub.type == "Lab" && slot.room.find("Lab") == std::string::npos) return false;
+    // Labs must go to rooms whose name contains "Lab"
+    if (sub.type == "Lab") {
+        if (slot.room.find("Lab") == std::string::npos) return false;
+    }
     return true;
 }
 
-// Struct for slot scoring
+// Struct for scoring candidate slots
 struct SlotScore {
     Slot slot;
     double score;
-    
+    // Sort descending by score
     bool operator<(const SlotScore& other) const {
-        return score > other.score; // Higher score = better
+        return score > other.score;
     }
 };
 
-// Greedy algorithm to schedule timetable with morning preference
-std::vector<Slot> scheduleTimetable(std::vector<Subject>& subjects, const std::string& config_filename, double morningWeight = 5.0) {
-    std::vector<Slot> timetable;
-    std::vector<std::string> rooms = getRooms(config_filename);
-    std::vector<std::string> days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"};
-    std::vector<std::string> times = {"9AM", "10AM", "11AM", "12PM", "1PM", "2PM"};
-    
-    // Track morning slot usage per day (for distribution)
-    std::vector<int> usedMorningSlots(5, 0); // 5 days
-    const int morningSlotCount = 3; // 9AM, 10AM, 11AM are morning slots
-    const double distributionPenalty = 2.0; // Penalty for uneven distribution
-
-    // Sort subjects: labs first, then by credits
-    std::sort(subjects.begin(), subjects.end(), [](const Subject& a, const Subject& b) {
-        if (a.type == "Lab" && b.type != "Lab") return true;
-        if (a.type != "Lab" && b.type == "Lab") return false;
-        return a.credits > b.credits;
-    });
-
-    // Assign each subject to valid slots using scoring
-    for (auto& sub : subjects) {
-        int hours_assigned = 0;
-        
-        while (hours_assigned < sub.hours_needed) {
-            std::vector<SlotScore> candidateSlots;
-            
-            // Generate all possible slots and score them
-            for (int day = 0; day < 5; ++day) {
-                for (int time = 0; time < 6; ++time) {
-                    for (const auto& room : rooms) {
-                        Slot slot = {day, time, room, sub.name, sub.teacher, sub.semester};
-                        if (isValidSlot(sub, slot, timetable)) {
-                            // Calculate score for this slot
-                            double score = 0.0;
-                            
-                            // Morning preference bonus
-                            bool isMorning = (time < morningSlotCount);
-                            if (isMorning) {
-                                score += morningWeight;
-                            }
-                            
-                            // Distribution penalty (encourage even spread across days)
-                            if (isMorning) {
-                                score -= distributionPenalty * usedMorningSlots[day];
-                            }
-                            
-                            // Lab preference for consecutive slots
-                            if (sub.type == "Lab" && time < 5) {
-                                Slot next_slot = {day, time + 1, room, sub.name, sub.teacher, sub.semester};
-                                if (isValidSlot(sub, next_slot, timetable)) {
-                                    score += 3.0; // Bonus for lab block availability
-                                }
-                            }
-                            
-                            candidateSlots.push_back({slot, score});
-                        }
-                    }
-                }
-            }
-            
-            if (candidateSlots.empty()) {
-                std::cerr << "Warning: No valid slots found for " << sub.name << "\n";
-                break;
-            }
-            
-            // Sort by score and take the best slot
-            std::sort(candidateSlots.begin(), candidateSlots.end());
-            Slot bestSlot = candidateSlots[0].slot;
-            
-            // Assign the slot
-            timetable.push_back(bestSlot);
-            ++hours_assigned;
-            
-            // Update morning slot usage
-            if (bestSlot.time < morningSlotCount) {
-                usedMorningSlots[bestSlot.day]++;
-            }
-            
-            // For labs, try to assign consecutive slot
-            if (sub.type == "Lab" && hours_assigned < sub.hours_needed && bestSlot.time < 5) {
-                Slot next_slot = {bestSlot.day, bestSlot.time + 1, bestSlot.room, sub.name, sub.teacher, sub.semester};
-                if (isValidSlot(sub, next_slot, timetable)) {
-                    timetable.push_back(next_slot);
-                    ++hours_assigned;
-                    
-                    // Update morning slot usage for consecutive slot
-                    if (next_slot.time < morningSlotCount) {
-                        usedMorningSlots[next_slot.day]++;
-                    }
-                }
-            }
-        }
-        
-        if (hours_assigned < sub.hours_needed) {
-            std::cerr << "Warning: Could not assign all hours for " << sub.name 
-                      << " (assigned " << hours_assigned << "/" << sub.hours_needed << ")\n";
-        }
-    }
-
-    // Print morning slot distribution summary
-    std::cerr << "Morning slot distribution: ";
-    for (int i = 0; i < 5; ++i) {
-        std::cerr << days[i] << ":" << usedMorningSlots[i] << " ";
-    }
-    std::cerr << "\n";
-
-    return timetable;
-}
-
-// Convert timetable to JSON
-std::string timetableToJson(const std::vector<Slot>& timetable) {
+// Helper: convert scheduled slots array to JSON array string
+// Example output:
+// [
+//   {"day":"Monday","time":"9AM","room":"...","subject":"...","teacher":"...","semester":"..."},
+//   ...
+// ]
+std::string timetableToJsonArray(const std::vector<Slot>& timetable) {
     std::vector<std::string> days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"};
     std::vector<std::string> times = {"9AM", "10AM", "11AM", "12PM", "1PM", "2PM"};
     std::string json = "[\n";
     for (size_t i = 0; i < timetable.size(); ++i) {
-        json += "  {\"day\": \"" + days[timetable[i].day] + "\", ";
-        json += "\"time\": \"" + times[timetable[i].time] + "\", ";
-        json += "\"room\": \"" + timetable[i].room + "\", ";
-        json += "\"subject\": \"" + timetable[i].subject + "\", ";
-        json += "\"teacher\": \"" + timetable[i].teacher + "\", ";
-        json += "\"semester\": \"" + timetable[i].semester + "\"}";
-        if (i < timetable.size() - 1) json += ",";
+        const Slot& s = timetable[i];
+        // Guard indices
+        std::string dayStr = (s.day >= 0 && s.day < (int)days.size()) ? days[s.day] : std::to_string(s.day);
+        std::string timeStr = (s.time >= 0 && s.time < (int)times.size()) ? times[s.time] : std::to_string(s.time);
+        json += "  {\"day\":\"" + dayStr + "\",";
+        json += "\"time\":\"" + timeStr + "\",";
+        json += "\"room\":\"" + s.room + "\",";
+        json += "\"subject\":\"" + s.subject + "\",";
+        json += "\"teacher\":\"" + s.teacher + "\",";
+        json += "\"semester\":\"" + s.semester + "\"}";
+        if (i + 1 < timetable.size()) json += ",";
         json += "\n";
     }
     json += "]";
     return json;
 }
 
-int main(int argc, char* argv[]) {
-    // Check for dataset and config file arguments (morning weight is optional)
-    if (argc < 3 || argc > 4) {
-        std::cerr << "Usage: " << argv[0] << " <dataset.csv> <config.csv> [morningWeight]\n";
-        std::cerr << "Example: " << argv[0] << " .\\datasets\\dataset1.csv .\\datasets\\dataset1_config.csv 10.0\n";
-        std::cerr << "Morning weight controls preference for morning slots (0-20, default: 5.0)\n";
-        return 1;
+// Greedy algorithm to schedule timetable with morning preference and conflict tracking
+ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::string& config_filename, double morningWeight = 5.0) {
+    ScheduleResult result;
+    auto& timetable = result.timetable;
+    auto& conflicts = result.conflicts;
+
+    // Load rooms
+    std::vector<std::string> rooms = getRooms(config_filename);
+    if (rooms.empty()) {
+        // Already warned in getRooms; but ensure at least one default
+        rooms = {"Classroom1"};
+    }
+    // Define days and times
+    std::vector<std::string> days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"};
+    std::vector<std::string> times = {"9AM", "10AM", "11AM", "12PM", "1PM", "2PM"};
+    int days_per_week = (int)days.size();
+    int hours_per_day = (int)times.size();
+
+    // Track morning slot usage per day
+    std::vector<int> usedMorningSlots(days_per_week, 0);
+    const int morningSlotCount = 3; // indices 0,1,2 => 9AM,10AM,11AM
+    const double distributionPenalty = 2.0;
+
+    // Optional pre-check: total required hours vs total available slots
+    int totalRequired = 0;
+    for (auto& sub : subjects) {
+        totalRequired += sub.hours_needed;
+    }
+    int numRooms = (int)rooms.size();
+    int totalSlots = days_per_week * hours_per_day * numRooms;
+    if (totalRequired > totalSlots) {
+        int diff = totalRequired - totalSlots;
+        std::cerr << "Error: Total required hours (" << totalRequired 
+                  << ") exceed total available slots (" << totalSlots 
+                  << "). Unavoidable conflict of " << diff << " hour(s).\n";
+        // Record as a general conflict entry
+        conflicts.push_back({ "<TOTAL_OVERFLOW>", diff });
+        // Continue best-effort scheduling
     }
 
-    // Parse optional morning weight parameter
-    double morningWeight = 5.0; // Default value
-    if (argc == 4) {
-        try {
-            morningWeight = std::stod(argv[3]);
-            if (morningWeight < 0 || morningWeight > 20) {
-                std::cerr << "Warning: Morning weight should be between 0-20. Using: " << morningWeight << "\n";
+    // Sort subjects: labs first, then by credits descending
+    std::sort(subjects.begin(), subjects.end(), [](const Subject& a, const Subject& b) {
+        if (a.type == "Lab" && b.type != "Lab") return true;
+        if (a.type != "Lab" && b.type == "Lab") return false;
+        return a.credits > b.credits;
+    });
+
+    // Main scheduling loop
+    for (auto& sub : subjects) {
+        int hours_assigned = 0;
+        while (hours_assigned < sub.hours_needed) {
+            std::vector<SlotScore> candidateSlots;
+            // Generate and score all feasible slots
+            for (int day = 0; day < days_per_week; ++day) {
+                for (int time = 0; time < hours_per_day; ++time) {
+                    for (const auto& room : rooms) {
+                        Slot slot = { day, time, room, sub.name, sub.teacher, sub.semester };
+                        if (!isValidSlot(sub, slot, timetable)) continue;
+                        double score = 0.0;
+                        // Morning preference
+                        bool isMorning = (time < morningSlotCount);
+                        if (isMorning) {
+                            score += morningWeight;
+                            // Distribution penalty: fewer on already-used days
+                            score -= distributionPenalty * usedMorningSlots[day];
+                        }
+                        // Lab preference: consecutive availability
+                        if (sub.type == "Lab" && time < hours_per_day - 1) {
+                            Slot next_slot = { day, time + 1, room, sub.name, sub.teacher, sub.semester };
+                            if (isValidSlot(sub, next_slot, timetable)) {
+                                score += 3.0; // bonus for consecutive
+                            }
+                        }
+                        candidateSlots.push_back({slot, score});
+                    }
+                }
             }
-        } catch (const std::exception& e) {
-            std::cerr << "Warning: Invalid morning weight '" << argv[3] << "'. Using default: " << morningWeight << "\n";
+            if (candidateSlots.empty()) {
+                int remaining = sub.hours_needed - hours_assigned;
+                std::cerr << "Warning: Could not schedule " << remaining 
+                          << " hour(s) for subject \"" << sub.name << "\"\n";
+                conflicts.push_back({ sub.name, remaining });
+                break; // move to next subject
+            }
+            // Pick best-scoring slot
+            std::sort(candidateSlots.begin(), candidateSlots.end());
+            Slot bestSlot = candidateSlots[0].slot;
+            timetable.push_back(bestSlot);
+            ++hours_assigned;
+            if (bestSlot.time < morningSlotCount) {
+                usedMorningSlots[bestSlot.day]++;
+            }
+            // If Lab and still need hours, try consecutive slot
+            if (sub.type == "Lab" && hours_assigned < sub.hours_needed && bestSlot.time < hours_per_day - 1) {
+                Slot next_slot = { bestSlot.day, bestSlot.time + 1, bestSlot.room, sub.name, sub.teacher, sub.semester };
+                if (isValidSlot(sub, next_slot, timetable)) {
+                    timetable.push_back(next_slot);
+                    ++hours_assigned;
+                    if (next_slot.time < morningSlotCount) {
+                        usedMorningSlots[next_slot.day]++;
+                    }
+                }
+            }
+        }
+        if (hours_assigned < sub.hours_needed) {
+            std::cerr << "Warning: Assigned " << hours_assigned << "/" 
+                      << sub.hours_needed << " hour(s) for \"" << sub.name << "\"\n";
         }
     }
 
+    // Print morning slot distribution summary (for logging/debug)
+    std::cerr << "Morning slot distribution: ";
+    for (int i = 0; i < days_per_week; ++i) {
+        std::cerr << days[i] << ":" << usedMorningSlots[i] << " ";
+    }
+    std::cerr << "\n";
+
+    return result;
+}
+
+// Main: parse args, read data, schedule, output JSON (timetable + conflicts)
+int main(int argc, char* argv[]) {
+    if (argc < 3 || argc > 4) {
+        std::cerr << "Usage: " << argv[0] << " <dataset.csv> <config.csv> [morningWeight]\n";
+        std::cerr << "Example: " << argv[0] << " dataset.csv resources.csv 10.0\n";
+        std::cerr << "Morning weight controls preference for morning slots (0-20, default: 5.0)\n";
+        return 1;
+    }
+    // Parse optional morningWeight
+    double morningWeight = 5.0;
+    if (argc == 4) {
+        try {
+            morningWeight = std::stod(argv[3]);
+            if (morningWeight < 0.0 || morningWeight > 20.0) {
+                std::cerr << "Warning: Morning weight should be between 0-20. Using: " 
+                          << morningWeight << "\n";
+            }
+        } catch (...) {
+            std::cerr << "Warning: Invalid morning weight '" << argv[3] 
+                      << "'. Using default: " << morningWeight << "\n";
+        }
+    }
     std::cerr << "Using morning preference weight: " << morningWeight << "\n";
 
-    // Read subjects from dataset CSV
+    // Read subjects
     std::vector<Subject> subjects = readSubjects(argv[1]);
     if (subjects.empty()) {
         std::cerr << "No subjects loaded from '" << argv[1] << "'. Exiting.\n";
         return 1;
     }
+    // Schedule
+    ScheduleResult res = scheduleTimetable(subjects, argv[2], morningWeight);
 
-    // Generate timetable using config file and morning weight
-    std::vector<Slot> timetable = scheduleTimetable(subjects, argv[2], morningWeight);
-
-    // Save to file
-    std::ofstream out("timetable.json");
-    if (!out.is_open()) {
-        std::cerr << "Error: Could not open timetable.json for writing\n";
-        return 1;
+    // Build JSON output
+    std::string json = "{\n";
+    json += "  \"timetable\": " + timetableToJsonArray(res.timetable) + ",\n";
+    json += "  \"conflicts\": [\n";
+    for (size_t i = 0; i < res.conflicts.size(); ++i) {
+        const auto& c = res.conflicts[i];
+        json += "    {\"subject\":\"" + c.subjectName 
+             + "\",\"unscheduledHours\":" + std::to_string(c.unscheduledHours) + "}";
+        if (i + 1 < res.conflicts.size()) json += ",\n";
     }
-    out << timetableToJson(timetable);
-    out.close();
+    json += "\n  ]\n";
+    json += "}\n";
 
-    std::cout << "Timetable generated and saved to timetable.json\n";
+    // Output JSON to stdout
+    std::cout << json;
+
+    // Also indicate completion on stderr if desired
+    std::cerr << "Timetable generation complete. Scheduled slots: " 
+              << res.timetable.size() 
+              << ". Conflicts: " << res.conflicts.size() << ".\n";
+
     return 0;
 }

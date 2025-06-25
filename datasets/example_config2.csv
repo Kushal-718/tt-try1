@@ -1,5 +1,4 @@
 resource_type,value
 room,Room1
 room,Room2
-timeslots_per_day,2
-days,3
+room,Room3    
