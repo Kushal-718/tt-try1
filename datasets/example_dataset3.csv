@@ -1,0 +1,10 @@
+name,semester,credits,type,teacher,hours_needed
+Mathematics,Sem1,4,Theory,T1,3
+Physics,Sem1,4,Theory,T1,3
+English,Sem1,3,Theory,T1,3
+Physics Lab,Sem1,2,Lab,T1,4
+Chemistry Lab,Sem1,2,Lab,T1,4
+Mathematics Advanced,Sem2,4,Theory,T1,3
+Biology,Sem2,4,Theory,T1,3
+History,Sem2,3,Theory,T1,3
+Computer Science,Sem3,4,Theory,T1,3

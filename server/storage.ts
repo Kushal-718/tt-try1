@@ -62,6 +62,7 @@ export class MemStorage implements IStorage {
       // If not present or undefined, set to null
       timetableData: (insertSession as any).timetableData ?? null,
       stats: (insertSession as any).stats ?? null,
+      scores: (insertSession as any).scores ?? null, // ✅ Add this line to heatmap
       // Initialize conflicts as empty array
       conflicts: [],
       // ID and createdAt
@@ -95,6 +96,7 @@ export class MemStorage implements IStorage {
       errorMessage: existingSession.errorMessage,
       timetableData: existingSession.timetableData,
       stats: existingSession.stats,
+      scores: existingSession.scores, //heatmap
       conflicts: existingSession.conflicts ?? [],
       createdAt: existingSession.createdAt,
     };
@@ -122,6 +124,14 @@ export class MemStorage implements IStorage {
         updatedSession.stats = st;
       }
     }
+    if ("scores" in updates) { //heatmap
+  const sc = (updates as any).scores;
+  if (sc !== undefined) {
+    // console.log(updatedSession.scores);
+    updatedSession.scores = sc;
+  }
+  }
+
     if (updates.conflicts !== undefined) {
       updatedSession.conflicts = updates.conflicts;
     }

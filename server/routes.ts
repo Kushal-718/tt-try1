@@ -58,6 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateSession(sessionId, {
           status: "failed",
           errorMessage: error.message,
+          // scores: result.scores, wrong dont use here
         });
       });
 
@@ -83,6 +84,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timetable: slots,
           stats: session.stats,
           conflicts: session.conflicts || [], // ✅ send conflicts always
+          scores: session.scores ?? [], // ✅ correct fix
         });
       } else {
         res.json({
@@ -116,14 +118,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
+// async function compileCppScheduler(): Promise<void> {
+//   return new Promise((resolve, reject) => {
+//     const compile = spawn("g++", ["timetable_scheduler_greedy.cpp", "-o", "scheduler"]);
+
+//     compile.on("close", (code) => {
+//       code === 0
+//         ? resolve()
+//         : reject(new Error(`Failed to compile C++ scheduler (exit code: ${code})`));
+//     });
+
+//     compile.on("error", (error) => {
+//       reject(new Error(`Failed to compile C++ scheduler: ${error.message}`));
+//     });
+//   });
+// }
 async function compileCppScheduler(): Promise<void> {
   return new Promise((resolve, reject) => {
     const compile = spawn("g++", ["timetable_scheduler_greedy.cpp", "-o", "scheduler"]);
 
+    compile.stderr.on("data", (data) => {
+      console.error("Compiler error:", data.toString());
+    });
+
     compile.on("close", (code) => {
-      code === 0
-        ? resolve()
-        : reject(new Error(`Failed to compile C++ scheduler (exit code: ${code})`));
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Failed to compile C++ scheduler (exit code: ${code})`));
+      }
     });
 
     compile.on("error", (error) => {
@@ -131,6 +154,7 @@ async function compileCppScheduler(): Promise<void> {
     });
   });
 }
+
 
 async function processSchedulerFiles(
   sessionId: string,
@@ -143,7 +167,9 @@ async function processSchedulerFiles(
     const result = JSON.parse(stdout) as {
       timetable: any[];
       conflicts: { subject: string; unscheduledHours: number }[];
+      heatmap: { day: number; time: number; room: string; score: number }[];  // ✅ Add this to heatmap
     };
+    
 
     const slots = result.timetable.map((slot) => ({
       day: slot.day,
@@ -159,12 +185,23 @@ async function processSchedulerFiles(
 
     const stats = calculateStats(result.timetable);
 
+    const scores = result.heatmap.map(({ day, time, score }) => {
+  const dayIndex = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].indexOf(day);
+  const timeIndex = ["9AM", "10AM", "11AM", "12PM", "1PM", "2PM"].indexOf(time);
+  return {
+    day: dayIndex,
+    time: timeIndex,
+    score: parseFloat(score.toFixed(2)),
+  };
+});
+
     await storage.updateSession(sessionId, {
       status: "completed",
       timetableData: null,
       stats,
       conflicts: result.conflicts,
       errorMessage: null,
+      scores, // ✅ store scores
     });
 
     await Promise.all([

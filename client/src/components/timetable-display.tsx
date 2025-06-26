@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQuery } from "@tanstack/react-query";
 import { FileText, FileDown, RefreshCw, Book, Users, DoorOpen } from "lucide-react";
 import type { TimetableSlot } from "@shared/schema";
+import ScoreHeatmap from "@/components/ScoreHeatmap"; // adjust path if needed
 
 interface TimetableDisplayProps {
   sessionId: string;
@@ -40,6 +41,7 @@ export function TimetableDisplay({ sessionId, onReset }: TimetableDisplayProps) 
     queryKey: [`/api/schedule/${sessionId}`],
     enabled: !!sessionId,
   });
+  const scores = (data as any)?.scores || [];
 
   if (isLoading) {
     return (
@@ -244,6 +246,12 @@ export function TimetableDisplay({ sessionId, onReset }: TimetableDisplayProps) 
           </div>
         </CardContent>
       </Card>
+                {/* Score Heatmap */}
+  <Card>
+    <CardContent className="p-6">
+      <ScoreHeatmap scores={scores} />
+    </CardContent>
+  </Card>
 
       {/* Morning Slot Metrics */}
       <Card>

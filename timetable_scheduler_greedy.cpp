@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <fstream>
 #include <sstream>
+#include <tuple>
+
 
 // Struct for a subject
 struct Subject {
@@ -35,6 +37,8 @@ struct Conflict {
 struct ScheduleResult {
     std::vector<Slot> timetable;
     std::vector<Conflict> conflicts;
+    // 👈 added for heatmap
+    std::vector<std::tuple<std::string, std::string, std::string, double>> heatmap;
 };
 
 // Read rooms from config file (CSV with header "resource_type,value")
@@ -118,10 +122,14 @@ bool isValidSlot(const Subject& sub, const Slot& slot, const std::vector<Slot>& 
             if (assigned.room == slot.room) return false; // Room conflict
         }
     }
-    // Labs must go to rooms whose name contains "Lab"
-    if (sub.type == "Lab") {
-        if (slot.room.find("Lab") == std::string::npos) return false;
-    }
+   // Enforce room-type match: Labs only in "Lab", Theory only in "Classroom"
+if (sub.type == "Lab" && slot.room.find("Lab") == std::string::npos) {
+    return false; // Lab must be in a Lab room
+}
+if (sub.type == "Theory" && slot.room.find("Lab") != std::string::npos) {
+    return false; // Theory should not be placed in a Lab room
+}
+
     return true;
 }
 
@@ -162,12 +170,33 @@ std::string timetableToJsonArray(const std::vector<Slot>& timetable) {
     json += "]";
     return json;
 }
+// 👈 added for heatmap
+std::string heatmapToJsonArray(const std::vector<std::tuple<std::string, std::string, std::string, double>>& heatmap) {
+    std::string json = "[\n";
+    for (size_t i = 0; i < heatmap.size(); ++i) {
+        // const auto& [day, time, room, score] = heatmap[i];
+        const std::string& day = std::get<0>(heatmap[i]);
+        const std::string& time = std::get<1>(heatmap[i]);
+        const std::string& room = std::get<2>(heatmap[i]);
+        double score = std::get<3>(heatmap[i]);
+
+        json += "  {\"day\":\"" + day + "\",\"time\":\"" + time + "\",\"room\":\"" + room + "\",\"score\":" + std::to_string(score) + "}";
+        if (i + 1 < heatmap.size()) json += ",";
+        json += "\n";
+    }
+    json += "]";
+    return json;
+}
+
 
 // Greedy algorithm to schedule timetable with morning preference and conflict tracking
 ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::string& config_filename, double morningWeight = 5.0) {
     ScheduleResult result;
     auto& timetable = result.timetable;
     auto& conflicts = result.conflicts;
+    // 👈 added for heatmap
+    std::vector<std::tuple<std::string, std::string, std::string, double>> heatmapData;
+
 
     // Load rooms
     std::vector<std::string> rooms = getRooms(config_filename);
@@ -236,6 +265,11 @@ ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::stri
                                 score += 3.0; // bonus for consecutive
                             }
                         }
+                        // 👈 added for heatmap
+                        // heatmapData.push_back({days[day], times[time], room, score});
+                        heatmapData.push_back(std::make_tuple(days[day], times[time], room, score));
+
+
                         candidateSlots.push_back({slot, score});
                     }
                 }
@@ -279,6 +313,8 @@ ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::stri
         std::cerr << days[i] << ":" << usedMorningSlots[i] << " ";
     }
     std::cerr << "\n";
+    // 👈 added for heatmap
+    result.heatmap = std::move(heatmapData);
 
     return result;
 }
@@ -319,7 +355,10 @@ int main(int argc, char* argv[]) {
     // Build JSON output
     std::string json = "{\n";
     json += "  \"timetable\": " + timetableToJsonArray(res.timetable) + ",\n";
+    // 👈 added for heatmap
+    json += "  \"heatmap\": " + heatmapToJsonArray(res.heatmap) + ",\n";
     json += "  \"conflicts\": [\n";
+
     for (size_t i = 0; i < res.conflicts.size(); ++i) {
         const auto& c = res.conflicts[i];
         json += "    {\"subject\":\"" + c.subjectName 

@@ -26,6 +26,7 @@ export const timetableSessions = pgTable("timetable_sessions", {
   stats: jsonb("stats"),
   // Add conflicts column with default empty array:
   conflicts: jsonb("conflicts").notNull().default(sql`'[]'::jsonb`),
+  scores: jsonb("scores").notNull().default(sql`'[]'::jsonb`), // ✅ Add this to heat map
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
