@@ -92,7 +92,7 @@ export default function Home() {
               onReset={handleReset}
             />
 
-            {/* ✅ Conflict Display */}
+            {/* ✅ Conflict Display
             {conflicts.length > 0 && (
               <div className="mt-6 p-4 bg-red-100 border border-red-300 rounded-lg">
                 <h2 className="text-lg font-semibold text-red-800">⛔ Scheduling Conflicts</h2>
@@ -103,6 +103,24 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )} */}
+            {/* ✅ Conflict Display */}
+            {conflicts.length > 0 ? (
+              <div className="mt-6 p-4 bg-red-100 border border-red-300 rounded-lg">
+                <h2 className="text-lg font-semibold text-red-800">⛔ Scheduling Conflicts</h2>
+                <ul className="mt-2 list-disc pl-6 text-red-700">
+                  {conflicts.map((conflict, idx) => (
+                    <li key={idx}>
+                      {conflict.subject} – {conflict.unscheduledHours} hour(s) unscheduled
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="mt-6 p-4 bg-green-100 border border-green-300 rounded-lg">
+                <h2 className="text-lg font-semibold text-green-800">✅ No Conflicts</h2>
+                <p className="text-green-700">All subjects have been successfully scheduled.</p>
               </div>
             )}
           </>
