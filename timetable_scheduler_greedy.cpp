@@ -281,8 +281,16 @@ ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::stri
                 conflicts.push_back({ sub.name, remaining });
                 break; // move to next subject
             }
-            // Pick best-scoring slot
-            std::sort(candidateSlots.begin(), candidateSlots.end());
+            // Pick best-scoring slot - changed the lambda fxn
+          std::sort(candidateSlots.begin(), candidateSlots.end(),
+    [](const SlotScore& a, const SlotScore& b) {
+        if (a.score != b.score)
+            return a.score > b.score;  // higher score comes first
+        if (a.slot.day != b.slot.day)
+            return a.slot.day < b.slot.day;  // earlier day comes first
+        return a.slot.time < b.slot.time;  // earlier time comes first
+    });
+
             Slot bestSlot = candidateSlots[0].slot;
             timetable.push_back(bestSlot);
             ++hours_assigned;

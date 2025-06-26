@@ -23,7 +23,7 @@ export default function ScoreHeatmap({ scores }: ScoreHeatmapProps) {
       grid[day][time] = parseFloat(score.toFixed(2));
     }
   });
-// console.log("Heatmap scores:", scores);
+console.log("Heatmap scores:", scores);
 
   return (
     <div className="overflow-x-auto p-4">
