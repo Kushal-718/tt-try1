@@ -234,10 +234,20 @@ ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::stri
 
     // Sort subjects: labs first, then by credits descending
     std::sort(subjects.begin(), subjects.end(), [](const Subject& a, const Subject& b) {
-        if (a.type == "Lab" && b.type != "Lab") return true;
-        if (a.type != "Lab" && b.type == "Lab") return false;
-        return a.credits > b.credits;
-    });
+    // 1️⃣ Labs come before non-Labs
+    if (a.type == "Lab" && b.type != "Lab") return true;
+    if (a.type != "Lab" && b.type == "Lab") return false;
+
+    // 2️⃣ Among same type, sort by descending credits
+    if (a.credits != b.credits) return a.credits > b.credits;
+
+    // 3️⃣ Tie-breaker: prefer higher semester
+    if (a.semester != b.semester) return a.semester > b.semester;
+
+    // 4️⃣ Final tie-breaker: alphabetically by subject name
+    return a.name < b.name;
+});
+
 
     // Main scheduling loop
     for (auto& sub : subjects) {
@@ -289,6 +299,7 @@ ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::stri
         if (a.slot.day != b.slot.day)
             return a.slot.day < b.slot.day;  // earlier day comes first
         return a.slot.time < b.slot.time;  // earlier time comes first
+        return a.slot.room < b.slot.room;  //based on room name
     });
 
             Slot bestSlot = candidateSlots[0].slot;
