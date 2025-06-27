@@ -1,0 +1,16 @@
+name,semester,credits,type,teacher,hours_needed
+Mathematics,S1-A,3,Theory,T1,3
+Physics,S1-A,4,Lab,T2,4
+ComputerNetwork,S1-A,3,Theory,T3,3
+Mech,S1-A,3,Theory,T4,3
+English,S1-A,2,Theory,T5,2
+Mathematics,S1-B,3,Theory,T1,3
+Physics,S1-B,4,Lab,T2,4
+ComputerNetwork,S1-B,3,Theory,T3,3
+Mech,S1-B,3,Theory,T4,3
+English,S1-B,2,Theory,T5,2
+Mathematics,S1-C,3,Theory,T1,3
+Physics,S1-C,4,Lab,T2,4
+ComputerNetwork,S1-C,3,Theory,T3,3
+Mech,S1-C,3,Theory,T4,3
+English,S1-C,2,Theory,T5,2
