@@ -166,7 +166,7 @@ async function processSchedulerFiles(
     const stdout = await runScheduler(datasetPath, configPath, morningWeight);
     const result = JSON.parse(stdout) as {
       timetable: any[];
-      conflicts: { subject: string; unscheduledHours: number }[];
+      conflicts: { subject: string; unscheduledHours: number ; suggestion?: string;}[] // ✅ add this field
       heatmap: { day: number; time: number; room: string; score: number }[];  // ✅ Add this to heatmap
     };
     

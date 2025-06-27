@@ -31,7 +31,9 @@ struct Slot {
 struct Conflict {
     std::string subjectName;
     int unscheduledHours;
+    std::string suggestion;  // ✅ NEW field for why couldnot schedule
 };
+
 
 // Result struct: scheduled slots + conflicts
 struct ScheduleResult {
@@ -142,6 +144,18 @@ struct SlotScore {
         return score > other.score;
     }
 };
+struct SlotFailureReasons {//conflict reasons
+    int teacherConflict = 0;
+    int semesterConflict = 0;
+    int roomConflict = 0;
+    int roomTypeMismatch = 0;
+    int totalChecked = 0;
+
+    bool allFailed() const {
+        return teacherConflict + semesterConflict + roomConflict + roomTypeMismatch == totalChecked;
+    }
+};
+
 
 // Helper: convert scheduled slots array to JSON array string
 // Example output:
@@ -186,7 +200,55 @@ std::string heatmapToJsonArray(const std::vector<std::tuple<std::string, std::st
     }
     json += "]";
     return json;
+}//for reason of conflict
+SlotFailureReasons analyzeSlotFailures(const Subject& sub, const std::vector<Slot>& timetable, const std::vector<std::string>& rooms) {
+    SlotFailureReasons stats;
+
+    for (int day = 0; day < 5; ++day) {
+        for (int time = 0; time < 6; ++time) {
+            for (const auto& room : rooms) {
+                ++stats.totalChecked;
+                bool failed = false;
+
+                // Check room type
+                if (sub.type == "Lab" && room.find("Lab") == std::string::npos) {
+                    ++stats.roomTypeMismatch;
+                    failed = true;
+                }
+                if (sub.type == "Theory" && room.find("Lab") != std::string::npos) {
+                    ++stats.roomTypeMismatch;
+                    failed = true;
+                }
+
+                if (failed) continue;
+
+                // Check timetable conflicts
+                for (const auto& assigned : timetable) {
+                    if (assigned.day == day && assigned.time == time) {
+                        if (assigned.teacher == sub.teacher) {
+                            ++stats.teacherConflict;
+                            failed = true;
+                            break;
+                        }
+                        if (assigned.semester == sub.semester) {
+                            ++stats.semesterConflict;
+                            failed = true;
+                            break;
+                        }
+                        if (assigned.room == room) {
+                            ++stats.roomConflict;
+                            failed = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return stats;
 }
+
 
 
 // Greedy algorithm to schedule timetable with morning preference and conflict tracking
@@ -233,7 +295,7 @@ ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::stri
     }
 
     // Sort subjects: labs first, then by credits descending
-    std::sort(subjects.begin(), subjects.end(), [](const Subject& a, const Subject& b) {
+   std::sort(subjects.begin(), subjects.end(), [](const Subject& a, const Subject& b) {
     // 1️⃣ Labs come before non-Labs
     if (a.type == "Lab" && b.type != "Lab") return true;
     if (a.type != "Lab" && b.type == "Lab") return false;
@@ -251,7 +313,7 @@ ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::stri
 
     // Main scheduling loop
     for (auto& sub : subjects) {
-        int hours_assigned = 0;
+        int hours_assigned = 0; 
         while (hours_assigned < sub.hours_needed) {
             std::vector<SlotScore> candidateSlots;
             // Generate and score all feasible slots
@@ -285,22 +347,56 @@ ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::stri
                 }
             }
             if (candidateSlots.empty()) {
-                int remaining = sub.hours_needed - hours_assigned;
-                std::cerr << "Warning: Could not schedule " << remaining 
-                          << " hour(s) for subject \"" << sub.name << "\"\n";
-                conflicts.push_back({ sub.name, remaining });
+    int remaining = sub.hours_needed - hours_assigned;
+
+    auto stats = analyzeSlotFailures(sub, timetable, rooms);
+
+    std::string suggestion;
+
+    if (stats.roomTypeMismatch == stats.totalChecked) {
+        suggestion = "No rooms of correct type available for this subject. Add appropriate rooms.";
+    } else if (stats.teacherConflict == stats.totalChecked) {
+        suggestion = "Teacher is unavailable at all times. Assign additional teacher or free up schedule.";
+    } else if (stats.semesterConflict == stats.totalChecked) {
+        suggestion = "Semester is fully occupied. Increase time slots or reduce course load.";
+    } else if (stats.roomConflict == stats.totalChecked) {
+        suggestion = "All rooms are occupied at required times. Add more rooms.";
+    } else {
+        suggestion = "Multiple constraints block scheduling. Review timetable flexibility.";
+    }
+    std::stringstream ss;
+ss << "Conflicts observed: ";
+
+if (stats.teacherConflict > 0)
+    ss << "Teacher busy in " << stats.teacherConflict << " slots. ";
+if (stats.semesterConflict > 0)
+    ss << "Semester conflict in " << stats.semesterConflict << " slots. ";
+if (stats.roomConflict > 0)
+    ss << "Room occupied in " << stats.roomConflict << " slots. ";
+if (stats.roomTypeMismatch > 0)
+    ss << "Room type mismatch in " << stats.roomTypeMismatch << " slots. ";
+
+suggestion += ss.str();
+
+
+    conflicts.push_back({ sub.name, remaining, suggestion });
+                // std::cerr << "Warning: Could not schedule " << remaining 
+                //           << " hour(s) for subject \"" << sub.name << "\"\n";
+                // conflicts.push_back({ sub.name, remaining });
                 break; // move to next subject
             }
             // Pick best-scoring slot - changed the lambda fxn
           std::sort(candidateSlots.begin(), candidateSlots.end(),
-    [](const SlotScore& a, const SlotScore& b) {
-        if (a.score != b.score)
-            return a.score > b.score;  // higher score comes first
-        if (a.slot.day != b.slot.day)
-            return a.slot.day < b.slot.day;  // earlier day comes first
-        return a.slot.time < b.slot.time;  // earlier time comes first
-        return a.slot.room < b.slot.room;  //based on room name
-    });
+             [](const SlotScore& a, const SlotScore& b) {
+            if (a.score != b.score)
+                return a.score > b.score;  // higher score first
+            if (a.slot.day != b.slot.day)
+                return a.slot.day < b.slot.day;  // earlier day
+            if (a.slot.time != b.slot.time)
+                return a.slot.time < b.slot.time;  // earlier time
+            return a.slot.room < b.slot.room;  // alphabetical room
+        });
+
 
             Slot bestSlot = candidateSlots[0].slot;
             timetable.push_back(bestSlot);
@@ -378,12 +474,19 @@ int main(int argc, char* argv[]) {
     json += "  \"heatmap\": " + heatmapToJsonArray(res.heatmap) + ",\n";
     json += "  \"conflicts\": [\n";
 
+    // for (size_t i = 0; i < res.conflicts.size(); ++i) {
+    //     const auto& c = res.conflicts[i];
+    //     json += "    {\"subject\":\"" + c.subjectName 
+    //          + "\",\"unscheduledHours\":" + std::to_string(c.unscheduledHours) + "}";
+    //     if (i + 1 < res.conflicts.size()) json += ",\n";
+    // } trying to print suggestions
     for (size_t i = 0; i < res.conflicts.size(); ++i) {
-        const auto& c = res.conflicts[i];
-        json += "    {\"subject\":\"" + c.subjectName 
-             + "\",\"unscheduledHours\":" + std::to_string(c.unscheduledHours) + "}";
-        if (i + 1 < res.conflicts.size()) json += ",\n";
-    }
+    const auto& c = res.conflicts[i];
+    json += "    {\"subject\":\"" + c.subjectName +
+            "\",\"unscheduledHours\":" + std::to_string(c.unscheduledHours) +
+            ",\"suggestion\":\"" + c.suggestion + "\"}";
+     if (i + 1 < res.conflicts.size()) json += ",\n";
+        }
     json += "\n  ]\n";
     json += "}\n";
 

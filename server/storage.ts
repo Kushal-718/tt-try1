@@ -11,6 +11,7 @@ import {
 export interface Conflict {
   subject: string;
   unscheduledHours: number;
+  suggestion?: string; // ✅ optional field for diagnostic tips
 }
 
 export interface IStorage {

@@ -3,6 +3,27 @@ import { sql } from "drizzle-orm";     // << add this
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// export const conflictSchema = z.object({
+//   subject: z.string(),
+//   unscheduledHours: z.number(),
+//   suggestion: z.string().optional(),
+// });
+
+// export type Conflict = z.infer<typeof conflictSchema>;
+// export const schedulerResultSchema = z.object({
+//   timetable: z.array(z.any()), // or define a Slot schema
+//   conflicts: z.array(conflictSchema),
+//   heatmap: z.array(
+//     z.object({
+//       day: z.string(),
+//       time: z.string(),
+//       room: z.string(),
+//       score: z.number(),
+//     })
+//   ),
+// });
+
+
 export const timetableSlots = pgTable("timetable_slots", {
   id: serial("id").primaryKey(),
   day: text("day").notNull(),

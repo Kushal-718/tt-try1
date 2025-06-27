@@ -12,8 +12,16 @@ export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "processing" | "completed" | "failed">("idle");
 
-  // ✅ 2. Add conflict state
-  const [conflicts, setConflicts] = useState<{ subject: string; unscheduledHours: number }[]>([]);
+  // // ✅ 2. Add conflict state
+  // const [conflicts, setConflicts] = useState<{ subject: string; unscheduledHours: number }[]>([]);
+  type Conflict = {
+  subject: string;
+  unscheduledHours: number;
+  suggestion?: string;
+};
+
+const [conflicts, setConflicts] = useState<Conflict[]>([]);
+
 
   const handleGenerationStart = (newSessionId: string) => {
     setSessionId(newSessionId);
@@ -105,7 +113,7 @@ export default function Home() {
                 </ul>
               </div>
             )} */}
-            {/* ✅ Conflict Display */}
+            {/* ✅ Conflict Display
             {conflicts.length > 0 ? (
               <div className="mt-6 p-4 bg-red-100 border border-red-300 rounded-lg">
                 <h2 className="text-lg font-semibold text-red-800">⛔ Scheduling Conflicts</h2>
@@ -122,7 +130,29 @@ export default function Home() {
                 <h2 className="text-lg font-semibold text-green-800">✅ No Conflicts</h2>
                 <p className="text-green-700">All subjects have been successfully scheduled.</p>
               </div>
+            )} */}
+            {/* ✅ Conflict Display */}
+            {conflicts.length > 0 ? (
+              <div className="mt-6 p-4 bg-red-100 border border-red-300 rounded-lg">
+                <h2 className="text-lg font-semibold text-red-800">⛔ Scheduling Conflicts</h2>
+                <ul className="mt-2 list-disc pl-6 text-red-700 space-y-2">
+                  {conflicts.map((conflict, idx) => (
+                    <li key={idx}>
+                      <span className="font-medium">{conflict.subject}</span> – {conflict.unscheduledHours} hour(s) unscheduled.
+                      {conflict.suggestion && (
+                        <div className="text-sm text-red-600 mt-1 ml-4 italic">💡 Suggestion: {conflict.suggestion}</div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="mt-6 p-4 bg-green-100 border border-green-300 rounded-lg">
+                <h2 className="text-lg font-semibold text-green-800">✅ No Conflicts</h2>
+                <p className="text-green-700">All subjects have been successfully scheduled.</p>
+              </div>
             )}
+
           </>
         )}
 
