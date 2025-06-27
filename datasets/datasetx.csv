@@ -1,0 +1,7 @@
+name,semester,credits,type,teacher,hours_needed
+Math101,S1,4,Theory,T1,4
+Physics101,S1,4,Theory,T2,3
+ChemLab,S1,2,Lab,T3,2
+Eng101,S2,4,Theory,T1,3
+CompSci101,S2,4,Theory,T4,4
+CompLab,S2,2,Lab,T4,2

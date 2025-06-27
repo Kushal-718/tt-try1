@@ -200,12 +200,12 @@ std::string heatmapToJsonArray(const std::vector<std::tuple<std::string, std::st
     }
     json += "]";
     return json;
-}//for reason of conflict
-SlotFailureReasons analyzeSlotFailures(const Subject& sub, const std::vector<Slot>& timetable, const std::vector<std::string>& rooms) {
+}
+//for reason of conflict
+SlotFailureReasons analyzeSlotFailures(const Subject& sub, const std::vector<Slot>& timetable, const std::vector<std::string>& rooms,int days_per_week,int hours_per_day) {
     SlotFailureReasons stats;
-
-    for (int day = 0; day < 5; ++day) {
-        for (int time = 0; time < 6; ++time) {
+    for (int day = 0; day < days_per_week; ++day) {
+        for (int time = 0; time < hours_per_day; ++time) {
             for (const auto& room : rooms) {
                 ++stats.totalChecked;
                 bool failed = false;
@@ -349,7 +349,7 @@ ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::stri
             if (candidateSlots.empty()) {
     int remaining = sub.hours_needed - hours_assigned;
 
-    auto stats = analyzeSlotFailures(sub, timetable, rooms);
+    auto stats = analyzeSlotFailures(sub, timetable, rooms,days_per_week,hours_per_day);
 
     std::string suggestion;
 
