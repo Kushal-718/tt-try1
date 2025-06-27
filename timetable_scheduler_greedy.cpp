@@ -44,7 +44,7 @@ struct ScheduleResult {
 };
 
 // Read rooms from config file (CSV with header "resource_type,value")
-std::vector<std::string> getRooms(const std::string& config_filename) {
+std::vector<std::string> getRooms(const std::string& config_filename, int& days_per_week, int& hours_per_day) {
     std::vector<std::string> rooms;
     std::ifstream file(config_filename);
     if (!file.is_open()) {
@@ -64,6 +64,11 @@ std::vector<std::string> getRooms(const std::string& config_filename) {
         if (resource_type == "room") {
             if (!value.empty())
                 rooms.push_back(value);
+        }
+        else if (resource_type == "days_per_week") {
+            days_per_week = std::stoi(value);
+        } else if (resource_type == "hours_per_day") {
+            hours_per_day = std::stoi(value);
         }
     }
     file.close();
@@ -260,18 +265,18 @@ ScheduleResult scheduleTimetable(std::vector<Subject>& subjects, const std::stri
     std::vector<std::tuple<std::string, std::string, std::string, double>> heatmapData;
 
 
-    // Load rooms
-    std::vector<std::string> rooms = getRooms(config_filename);
-    if (rooms.empty()) {
-        // Already warned in getRooms; but ensure at least one default
-        rooms = {"Classroom1"};
-    }
     // Define days and times
     std::vector<std::string> days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"};
     std::vector<std::string> times = {"9AM", "10AM", "11AM", "12PM", "1PM", "2PM"};
     int days_per_week = (int)days.size();
     int hours_per_day = (int)times.size();
-
+    
+    // Load rooms
+    std::vector<std::string> rooms = getRooms(config_filename,days_per_week,hours_per_day);
+    if (rooms.empty()) {
+        // Already warned in getRooms; but ensure at least one default
+        rooms = {"Classroom1"};
+    }
     // Track morning slot usage per day
     std::vector<int> usedMorningSlots(days_per_week, 0);
     const int morningSlotCount = 3; // indices 0,1,2 => 9AM,10AM,11AM
